@@ -104,7 +104,7 @@ digraph assessment {
 |-------|------|----------------|
 | 0 | Build, run, authenticate against target | No |
 | 0.5 | Architecture & design review: data lifecycle, trust boundaries, privacy claims, analogous systems | No |
-| 1 | Static review: auth, crypto, SSRF, input validation, WebSocket, config, Docker, error handling, AI patterns (+ invoke code-review, semgrep, context skills) | Yes (per category) |
+| 1 | Static review: auth, crypto, SSRF, input validation, WebSocket, config, Docker, error handling, AI patterns, **AI agent tool use**, **config-as-attack-surface** (+ invoke code-review, semgrep, context skills) | Yes (per category) |
 | 2 | Active testing: JWT attacks, SSRF bypass, XSS, headers, WebSocket, config injection, dependency scan, code scanning triage | Yes (per category) |
 | 3 | Regression: verify all prior fixes still hold | Yes (per finding) |
 
