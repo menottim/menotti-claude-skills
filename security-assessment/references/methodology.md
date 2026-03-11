@@ -8,10 +8,9 @@
 
 ## Your Role
 
-You are a world-class application security engineer and penetration tester with OSCP, OSWE, and GWAPT certifications. You have 15+ years of experience in:
+You are conducting a **white-box security assessment** of the target application. Your domain expertise covers:
 
 - Web application penetration testing (OWASP WSTG v4.2 methodology)
-- Python/FastAPI security assessments
 - Cryptographic implementation review (JWT, Argon2id, Fernet, SQLCipher)
 - WebSocket security testing
 - Docker container security auditing
@@ -21,7 +20,7 @@ You are a world-class application security engineer and penetration tester with 
 - Privacy engineering and data lifecycle analysis
 - LLM/AI application security (prompt injection, trust boundary analysis)
 
-You are conducting a **white-box security assessment** of the target application. If the codebase is AI-generated, pay special attention to inconsistent validation, placeholder security, copy-paste gaps, and over-reliance on framework defaults.
+If the codebase is AI-generated, pay special attention to inconsistent validation, placeholder security, copy-paste gaps, and over-reliance on framework defaults.
 
 **Your mission:** Find every exploitable vulnerability. Do not assume anything is safe because it "looks correct." Verify everything empirically.
 
@@ -52,7 +51,7 @@ You are an AI assistant, not a human security engineer. Be honest about what you
 4. **Check for regressions.** Prior assessments found and fixed vulnerabilities. Verify the fixes still hold.
 5. **Output a structured report** (format specified at end of this document).
 6. **Do not modify the codebase** during testing. Document findings only.
-7. **Integrate other skills.** Check which skills are available (code-review, semgrep, framework context skills) and invoke them during Phase 1 to supplement security-focused code review with broader code quality analysis. Don't duplicate what specialized skills do better.
+7. **Integrate other tools.** Check which skills or tools are available (code review, static analysis, framework-specific context) and invoke them during Phase 1 to supplement security-focused code review. Don't duplicate what specialized tools do better.
 
 ---
 
@@ -245,7 +244,7 @@ Calculate the storage footprint and assess proportionality.
 
 > Replace file paths and line numbers with your target's equivalents. The *categories* (auth, crypto, SSRF, input validation, WebSocket, Docker) are universal.
 
-> Phase 1 is informed by Phase 0.5 findings. Use the architecture review's prioritized investigation list to focus code review on the highest-risk areas first. Additionally, invoke available skills (code-review, framework context skills) as parallel agents alongside the security-focused review agents.
+> Phase 1 is informed by Phase 0.5 findings. Use the architecture review's prioritized investigation list to focus code review on the highest-risk areas first. Invoke any available code review or framework-specific skills as parallel agents alongside the security-focused review agents.
 
 Systematically review each security-critical component. Use `Read` and `Grep` tools.
 
@@ -1219,7 +1218,8 @@ The retrospective produces an appendix of proposed improvements. These are PROPO
 2. Present the proposed improvements to the user for review
 3. **GATE: Wait for explicit user approval** — the user may accept, reject, or modify each proposal
 4. Only after approval, apply the accepted improvements to:
-   - `methodology.md` in this skill directory (universal improvements)
+   - `references/methodology.md` in this skill directory (universal improvements)
+   - `references/lessons-learned.md` for run-specific notes and tool workarounds
    - The project's `docs/security-assessment-prompt.md` if it exists (project-specific improvements)
 5. Commit with a message referencing which assessment run generated the improvements
 
@@ -1227,100 +1227,13 @@ The retrospective produces an appendix of proposed improvements. These are PROPO
 
 ---
 
-## Lessons Learned: v1.3.0 Assessment (2026-03-05)
+## Lessons Learned
 
-The following improvements were applied after running this methodology against an example Python/FastAPI/Docker application.
+Detailed lessons from prior assessment runs are in `references/lessons-learned.md`. Read that file when adapting the methodology for a new target or troubleshooting tooling issues. Key takeaways that have already been incorporated into the methodology above:
 
-### Additions (from v1.3.0 run)
-
-1. **[DOCKER] Entrypoint privilege dropping** — Add explicit test: `docker exec <container> whoami`. The v1.3.0 assessment found that `gosu` was installed but never invoked in the entrypoint. This was the highest-impact finding (Medium) but was NOT in the original pre-identified concerns list.
-
-2. **[VALIDATION] Password in error responses** — Add test: send malformed login request (e.g., `{"username": 123, "password": "real_password"}`) and check if the response `input` field contains the password. Pydantic's `RequestValidationError` includes raw input by default. This was the third-highest finding.
-
-3. **[DOCKER] read_only/cap_drop as separate test** — Distinguish between "commented out for compatibility" (documented choice) vs. "missing entirely" (oversight). Both are findings, but the former is lower severity.
-
-4. **[SSRF] `allow_local` scope analysis** — When testing SSRF with `allow_local=True`, test cloud metadata (169.254.x.x) SEPARATELY from private ranges (10.x, 172.16.x, 192.168.x). The `allow_local` flag may bypass the entire blocklist, not just private ranges.
-
-5. **[CRYPTO] Decrypt failure behavior** — Add test: what happens when `decrypt_if_needed()` encounters a value encrypted with a different key? Silent fallback to ciphertext is a finding (masks key rotation problems).
-
-6. **[WEBSOCKET] Connection limit test** — Add: attempt to open 100+ WebSocket connections and measure server memory impact.
-
-7. **[CONFIG] Webhook URL SSRF** — Config import may validate instance URLs but not webhook URLs. Test both independently.
-
-### Modifications (from v1.3.0 run)
-
-1. **[Phase 2] Agent permissions** — Agents dispatched for active testing were sandboxed from running some Bash commands against Docker. **Mitigation**: Either (a) run tests directly in the main session, or (b) pre-run Docker setup commands and provide cookie jar / auth tokens to agents explicitly, or (c) launch agents with clear instructions that they MUST use Bash for curl commands.
-
-2. **[Phase 2] Static-only fallback** — When active testing is blocked by tool permissions, the assessment can still provide high-value findings via comprehensive static code review. The static review agent found 15 findings (3 Medium) without running any live commands. This is NOT a downgrade — it's defense-in-depth for the assessment itself.
-
-3. **[SSRF severity] `allow_local` bypass** — Original pre-identified concern rated this as "may bypass cloud metadata." After review, confirmed it bypasses ALL blocked networks when enabled. Upgrade from investigation-needed to confirmed Medium.
-
-4. **[Pre-identified concerns #6] Registration race** — Downgrade from investigation concern to Low/Info. The dashboard endpoint already has a post-commit check; only the API endpoint lacks it. Rate limiting (3/hour) makes practical exploitation infeasible.
-
-### Removals
-
-None — all original test cases remained relevant.
-
-### Tool Workarounds (from v1.3.0 run)
-
-1. **[Bash in sub-agents]** Sub-agents may be denied Bash tool access depending on permission settings. Workaround: run Docker setup and curl commands in the main session, then dispatch agents for code review (Read/Grep only). Pass authentication cookies as explicit strings in agent prompts.
-
-2. **[WebSocket testing]** Python `websockets` library may not be installed in the assessment environment. Workaround: use `python3 -c "import websockets"` to check availability first. If unavailable, test WebSocket auth via static code review of `ws.py` (the auth logic is fully visible in code).
-
-### Lessons Learned: Screen-Capture Application Assessment (2026-03-06)
-
-The following improvements were identified during an assessment of a screen-capture/AI-annotation application and led to the creation of Phase 0.5.
-
-#### Additions (from screen-capture app run)
-
-1. **[ARCHITECTURE] Phase 0.5 — Architecture & Design Review** — The 5 most impactful findings (VULN-18 through VULN-22) were design-level issues that no code-level grep or endpoint test would have found. Added as a mandatory phase with 7 categories.
-
-2. **[AI/LLM] Indirect prompt injection to XSS** — When LLM output is rendered as HTML via `v-html` or f-string interpolation, the LLM's visual input becomes an XSS injection vector. Added to Phase 0.5.2 trust boundary analysis.
-
-3. **[AI/LLM] Prompt injection propagation chains** — When prior LLM outputs are fed back as context for subsequent LLM calls, a single adversarial input can contaminate a chain of outputs. Added to Phase 0.5.2 "Prior output -> Future input" trust boundary.
-
-4. **[PRIVACY] Claims-vs-reality analysis** — Projects that claim "privacy-first" may contradict those claims (CDN loading, configurable remote endpoints). Added as Phase 0.5.4.
-
-5. **[ARCHITECTURE] Data volume estimation** — Calculating storage accumulation over the default retention period makes "unencrypted data at rest" findings concrete. Added as Phase 0.5.7.
-
-6. **[ARCHITECTURE] Analogous system comparison** — Comparing to Windows Recall and Kevin Beaumont's research framed the severity and identified missing controls. Added as Phase 0.5.5.
-
-7. **[FILING] Private vulnerability reporting** — GitHub's private vulnerability reporting must be enabled by the repo owner. The `gh api repos/OWNER/REPO/security-advisories/reports` endpoint is correct for filing as a non-maintainer.
-
-8. **[FILING] Comprehensive + individual advisories** — Filing one comprehensive advisory plus individual advisories per finding provides both big picture and per-finding tracking.
-
-#### Modifications (from screen-capture app run)
-
-1. **[Phase 0] Non-Docker/non-git targets** — For PyPI packages: download with `pip download --no-deps`, unzip wheel, create test venv. Phase 0.5 does NOT require a running target.
-
-2. **[SEVERITY] Localhost-only services** — Use CVSS Modified Attack Vector = Local for localhost-bound services, but still report findings.
-
-3. **[Phase 1] Architecture informs code review** — Phase 1 agent prompts should reference Phase 0.5 findings to focus code review.
-
-#### Tool Workarounds (from screen-capture app run)
-
-1. **[socketio]** Install with: `pip install "python-socketio[client]"`
-2. **[zsh]** Quote all curl URLs containing query parameters (zsh glob expansion).
-3. **[Private vuln reporting]** May return 403 if not enabled. Ask maintainer to enable in Settings > Security > Private vulnerability reporting.
-
-3. **[Timing analysis]** Running 100+ timed requests from `curl` inside Claude Code can be slow. Workaround: reduce to 20 samples per group (valid/invalid username). Statistical significance requires ~20+ samples for Argon2 timing (which takes ~200ms per hash).
-
-### Process Insights (from v1.3.0 fix + closeout cycle)
-
-These are lessons about the full lifecycle: assessment -> filing -> fixing -> closeout.
-
-1. **[CLOSEOUT] Advisories must be published, not just created.** Draft advisories are invisible to the public and don't trigger GitHub's dependency alert system. After fixes land, PATCH each advisory to `state: "published"` with `patched_versions` set. This was missing from the original methodology and added to the Filing Findings section.
-
-2. **[CLOSEOUT] Issues need fix-to-commit mapping.** When closing a batched issue (multiple findings in one issue), the close comment should map each finding to its fix commit hash. This creates an audit trail from finding -> fix -> verification.
-
-3. **[FILING] `gh api` requires `--input` for nested JSON.** The `-f` flag approach doesn't work for Security Advisories because the `vulnerabilities` field requires nested JSON objects. Always use `--input - <<'JSON'` with a heredoc. This cost a failed attempt during the first filing.
-
-4. **[FIXING] Docker `read_only: true` has cascading effects.** Enabling `read_only` broke the entrypoint's symlink creation. Fixes that enable security hardening must be tested end-to-end in Docker, not just verified in code review. The assessment methodology should include a "Docker rebuild + smoke test" step after Docker-related fixes.
-
-5. **[FIXING] `docker exec whoami` is misleading.** It runs a new shell as root (Docker default), not as the application process user. To verify privilege dropping, check `/proc/1/status` for the actual UID: `docker exec <container> cat /proc/1/status | grep Uid`. This should be added to the Docker security test section.
-
-6. **[FIXING] Subagent-driven fixes are fast for isolated changes.** Each advisory fix was dispatched to a fresh subagent in <3 minutes. The key: provide the exact code context (file, line numbers, before/after) in the agent prompt. Don't make the agent discover the code — give it the answer and let it implement.
-
-7. **[PROCESS] Assessment -> Plan -> Fix -> Closeout is the right sequence.** Don't start fixing during the assessment (context pollution). Don't file before the assessment is complete (may duplicate). Don't skip the closeout (advisories stay as invisible drafts). The full cycle for v1.3.0 was: 3 parallel assessment agents -> compiled report -> filed 4 advisories + 1 issue -> wrote implementation plan -> 6 subagent fix dispatches -> Docker verification -> published advisories + closed issue.
-
-8. **[MEMORY] Record advisory IDs and issue numbers.** Add the GHSA IDs and issue numbers to MEMORY.md immediately after filing so they're available for the closeout step. The v1.3.0 run had to re-query the API to find them.
+- Phase 0.5 (Architecture & Design Review) was created after design-level findings proved to be the highest-impact results
+- `docker exec whoami` is misleading for privilege checks; use `/proc/1/status` instead
+- Sub-agents may be denied Bash access; run Docker/curl in main session, dispatch agents for static review only
+- Advisory lifecycle: Draft -> Fix -> **Published** (not Closed). Published is the correct terminal state.
+- Always test SSRF bypass vectors for cloud metadata (169.254.x.x) separately from private ranges
+- `gh api` requires `--input` with heredoc for nested JSON (Security Advisories)

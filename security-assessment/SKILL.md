@@ -40,16 +40,16 @@ Four-phase AI-assisted security assessment methodology: architecture & design re
 
 ## Skill Integration
 
-This skill should leverage other available skills to bolster its coverage. Check which skills are available and invoke them where applicable:
+If other skills are available in your environment, use them to bolster coverage:
 
-| Skill | When to invoke | What it adds |
-|-------|---------------|-------------|
-| `code-review` | During Phase 1 — dispatch as a parallel agent reviewing changed/critical files | Catches code quality issues, logic errors, and convention violations that pure security focus misses |
-| `author-semgrep-rule` | When a finding pattern could be expressed as a static analysis rule | Creates reusable detection for the vulnerability class |
-| `sourcegraph` | During Phase 0.5 — search for the same vulnerability patterns across other repos | Identifies whether the issue is systemic or isolated |
-| `python-context` / `java-context` / `js-context` | During Phase 1 — for framework-specific security checks | Provides framework-specific security knowledge (Django CSRF, Spring actuators, Express prototype pollution) |
+| Capability | When to invoke | What it adds |
+|------------|---------------|-------------|
+| Code review skill | During Phase 1, dispatch as a parallel agent on critical files | Catches code quality issues and convention violations that pure security focus misses |
+| Static analysis rule authoring (Semgrep, etc.) | When a finding pattern could be expressed as a reusable rule | Creates detection for the vulnerability class across future code |
+| Code search (Sourcegraph, GitHub search, etc.) | During Phase 0.5, search for the same patterns across other repos | Identifies whether the issue is systemic or isolated |
+| Framework-specific context skills | During Phase 1, for framework-specific checks | Framework-specific security knowledge (Django CSRF, Spring actuators, Express prototype pollution) |
 
-**How to integrate:** After Phase 0.5 generates investigation priorities, check if any available skill matches a priority. If so, invoke it as part of Phase 1 rather than duplicating its expertise with generic code review.
+**How to integrate:** After Phase 0.5 generates investigation priorities, check if any available skill matches a priority. Invoke it as part of Phase 1 rather than duplicating its expertise.
 
 ## When to Use
 
@@ -60,7 +60,7 @@ This skill should leverage other available skills to bolster its coverage. Check
 - Pre-release security review
 
 **When NOT to use:**
-- General code review (use code-review skill)
+- General code review (use a dedicated code review skill or tool)
 - Dependency-only vulnerability scanning (use `pip audit` / `npm audit` directly)
 - Threat modeling without code (use a threat model framework)
 
@@ -104,13 +104,13 @@ digraph assessment {
 |-------|------|----------------|
 | 0 | Build, run, authenticate against target | No |
 | 0.5 | Architecture & design review: data lifecycle, trust boundaries, privacy claims, analogous systems | No |
-| 1 | Static review: auth, crypto, SSRF, input validation, WebSocket, config, Docker, error handling, AI patterns, **AI agent tool use**, **config-as-attack-surface** (+ invoke code-review, semgrep, context skills) | Yes (per category) |
+| 1 | Static review: auth, crypto, SSRF, input validation, WebSocket, config, Docker, error handling, AI patterns, **AI agent tool use**, **config-as-attack-surface** (+ invoke available review/analysis skills) | Yes (per category) |
 | 2 | Active testing: JWT attacks, SSRF bypass, XSS, headers, WebSocket, config injection, dependency scan, code scanning triage | Yes (per category) |
 | 3 | Regression: verify all prior fixes still hold | Yes (per finding) |
 
 ## How to Use
 
-1. **Read the full methodology:** `@methodology.md` in this skill directory contains the complete reference — all test categories, exact commands, output format, filing protocol, and self-improvement process.
+1. **Read the full methodology:** `references/methodology.md` in this skill directory contains the complete reference: all test categories, commands, output format, filing protocol, and self-improvement process.
 
 2. **First assessment on a project?** Use the "Adapting This Prompt" section in methodology.md to map the target's attack surface and generate project-specific test commands.
 
@@ -158,14 +158,15 @@ digraph assessment {
 | WebSearch unavailable | Skip analogous system comparison (category 5). Note gap and recommend manual research. |
 | Target has no network component | Skip supply chain CDN checks. Focus on filesystem data lifecycle. |
 | Target is not yet running | Phase 0.5 does NOT require a running target. Proceed with code-only analysis. |
-| code-review skill not available | Proceed without it. Note in report that code-level review was security-focused only. |
+| Code review skill not available | Proceed without it. Note in report that code-level review was security-focused only. |
 
 ## Self-Improvement
 
 After every assessment, append an "Appendix: Prompt Improvement Recommendations" to the report. These are **proposals, not automatic changes.**
 
 **MANDATORY: Present proposed improvements to the user and wait for explicit approval before modifying any skill files.** The user may accept, reject, or modify each proposal. Only apply approved changes to:
-1. `methodology.md` in this skill directory (universal improvements)
-2. The project's `docs/security-assessment-prompt.md` if it exists (project-specific improvements)
+1. `references/methodology.md` in this skill directory (universal improvements)
+2. `references/lessons-learned.md` for run-specific notes and tool workarounds
+3. The project's `docs/security-assessment-prompt.md` if it exists (project-specific improvements)
 
-See the full retrospective protocol in methodology.md.
+See the full retrospective protocol in `references/methodology.md`.
